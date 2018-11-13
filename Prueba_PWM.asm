@@ -4,8 +4,8 @@
 ;    Date:	    noviembre, 2018					       *
 ;    Autors:	    Jose Pablo De Leon					       *
 ;		    Jose Pablo Marroquin				       *
-;    Description:   PWM using T with TMR0 (20MS)			       *
-;		    Delta T_ON with TMR1 (4US)				       *
+;    Description:   2 PWMs using T with TMR0 (20MS)			       *
+;		    Delta T_ON with TMR1 (8US)				       *
 ;									       *
 ;*******************************************************************************
 ;*******************************************************************************
@@ -27,7 +27,8 @@
 ; TODO PLACE VARIABLE DEFINITIONS GO HERE
 GPR_VAR		UDATA
 TONMIN		RES 1		; VARIABLE PARA CONTAR DELTAS DE TIEMPO ON, TOTAL 1MS FIJO
-TONVAR		RES 1		; VARIABLE PARA CONTAR DELTAS T_ON, ENTRE 0 Y 1MS, DESPUÉS DE 1MS ON
+TONVAR		RES 1		; VARIABLE PARA CONTAR DELTAS T_ON, ENTRE 0 Y 1MS, DESPUÉS DE 1MS ON (PWM1)
+TONVAR2		RES 1		; VARIABLE PARA CONTAR DELTAS T_ON, ENTRE 0 Y 1MS, DESPUÉS DE 1MS ON (PWM2)
 VAL1X		RES 1		; VARIABLE DE ADC MANIPULADA CON JOYSTICK1 - X
 VAL1Y		RES 1		; VARIABLE DE ADC MANIPULADA CON JOYSTICK1 - Y
 VAL2X		RES 1		; VARIABLE DE ADC MANIPULADA CON JOYSTICK2 - X
@@ -45,7 +46,7 @@ RES_VECT  CODE    0x0000            ; processor reset vector
 ;*******************************************************************************
 ; Interrupt Service Routines
 ;*******************************************************************************
-ISR       CODE    0x0004           ; interrupt vector location
+ISR       CODE    0x0004	; interrupt vector location
 
 PUSH:
     BCF	    INTCON, GIE
@@ -57,23 +58,47 @@ ISR:
 ;    CALL    INT_TMR0
     BTFSS   INTCON, T0IF
     GOTO    INT1
+    
+    MOVLW   .100		; N = 100 d = 0064 h
+    MOVWF   TMR0
+    BCF	    INTCON, T0IF
+    
     BSF	    PORTD, RD3
-    MOVLW   .50
+    BSF	    PORTD, RD2
+    MOVLW   .115
     MOVWF   TONMIN
-    MOVLW   .50		; VALOR ENTRE 0 Y 50
+    MOVLW   .0			; VALOR ENTRE 0 Y 50
 ;    MOVF    VAL1,   W
     MOVWF   TONVAR
+    INCF    TONVAR
+    MOVLW   .0			; VALOR ENTRE 0 Y 50
+;    MOVF    VAL1,   W
+    MOVWF   TONVAR2
+    INCF    TONVAR2
 
 INT1:
 ;    BTFSC   PIR1,   TMR1IF
 ;    CALL    INT_TMR1
     BTFSS   PIR1,   TMR1IF
     GOTO    POP
+    
+    MOVLW   0FFh		; N = 6... d = 0FFEF h
+    MOVWF   TMR1H
+    MOVLW   0EFh
+    MOVWF   TMR1L
+    BCF	    PIR1,   TMR1IF
+    
     DECFSZ  TONMIN, F
     GOTO    POP
+    
     DECFSZ  TONVAR, F
-    GOTO    POP
+    GOTO    DECPWM2
     BCF	    PORTD,  RD3
+    
+DECPWM2:
+    DECFSZ  TONVAR2, F
+    GOTO    POP
+    BCF	    PORTD,  RD2
     
 POP:
     SWAPF   STATUS_TEMP, W
@@ -102,7 +127,7 @@ SETUP:
     CLRF    TRISD	; PORTC AS OUTPUT
 ;    BCF	    TRISD,  RD0
 ;    BCF	    TRISD,  RD1
-;    BCF	    TRISD,  RD2
+    BCF	    TRISD,  RD2
     BCF	    TRISD,  RD3	; PINS <0:3> PORTD AS PWM OUTPUTS
     CLRF    TRISE
     BSF	    TRISE,  RE0	; PINS <0:1> PORTE AS INPUTS
@@ -118,6 +143,7 @@ SETUP:
     
     BANKSEL PORTA
     CLRF    PORTA
+    BSF     PORTA, RA1
     CLRF    PORTB
     CLRF    PORTC
     CLRF    PORTD
@@ -153,9 +179,9 @@ CONFIG_TMR1
     BCF	    T1CON,  T1CKPS0
     BCF	    T1CON,  TMR1CS	; INTERNAL CLOCK
     BSF	    T1CON,  TMR1ON	; ENABLE TIMER1
-    MOVLW   0FFh		; N = 65496 d = 0FFD8 h
+    MOVLW   0FFh		; N =  d = 0FFEF h
     MOVWF   TMR1H
-    MOVLW   0D8h
+    MOVLW   0EFh
     MOVWF   TMR1L
     BCF	    PIR1,   TMR1IF
     RETURN
