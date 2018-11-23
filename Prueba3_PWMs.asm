@@ -27,8 +27,8 @@
 ; TODO PLACE VARIABLE DEFINITIONS GO HERE
 GPR_VAR		UDATA
 TONMIN		RES 1		; VARIABLE PARA CONTAR DELTAS DE TIEMPO ON, TOTAL 1MS FIJO
-TONVAR		RES 1		; VARIABLE PARA CONTAR DELTAS T_ON, ENTRE 0 Y 1MS, DESPUÉS DE 1MS ON (PWM1)
-TONVAR2		RES 1		; VARIABLE PARA CONTAR DELTAS T_ON, ENTRE 0 Y 1MS, DESPUÉS DE 1MS ON (PWM2)
+TONVAR		RES 1		; VARIABLE PARA CONTAR DELTAS T_ON, ENTRE 0 Y 1MS, DESPUÃ‰S DE 1MS ON (PWM1)
+TONVAR2		RES 1		; VARIABLE PARA CONTAR DELTAS T_ON, ENTRE 0 Y 1MS, DESPUÃ‰S DE 1MS ON (PWM2)
 DIF_T		RES 1		; VARIABLE PARA CONTAR DELTAS DE TIEMPO
 ADCX1		RES 1		; VARIABLE DE VRX JOYSTICK 1
 ADCY1		RES 1		; VARIABLE DE VRY JOYSTICK 1
@@ -43,18 +43,19 @@ DELAY2		RES 1		; VARIABLE PARA DELAY2
 W_TEMP		RES 1
 STATUS_TEMP	RES 1
 
-PWM	MACRO	VALOR, PIN
-	LOCAL	FIN
-    DECFSZ  TONMIN, F
-    GOTO    FIN
-    
-    MOVF    DIF_T,  W	    ; REVISAR SI DIF_T ES MAYOR O IGUAL QUE VALOR
-    SUBWF   VAL4,   W
-    BTFSS   STATUS, C	    ; ¿DIF_T >= VAL1?
-    BCF	    PORTD,  RD3	    ; SÍ -> APAGA EL PIN
-
-FIN:
-    ENDM
+;PWM	MACRO
+;	LOCAL	FIN
+;    INCF    TONMIN, F
+;    DECFSZ  TONMIN, F
+;    GOTO    FIN
+;    
+;    MOVF    DIF_T,  W	    ; REVISAR SI DIF_T ES MAYOR O IGUAL QUE VALOR
+;    SUBWF   VAL4,   W
+;    BTFSS   STATUS, C	    ; Â¿DIF_T >= VAL1?
+;    BCF	    PORTD,  RD3	    ; SÃ -> APAGA EL PIN
+;
+;FIN:
+;    ENDM
 ;*******************************************************************************
 ; Reset Vector
 ;*******************************************************************************
@@ -73,22 +74,33 @@ PUSH:
 ISR:
     BTFSS   PIR1,   TMR1IF
     GOTO    INT0
-    MOVLW   .250
-    MOVWF   TONMIN
+    MOVLW   0FFh		; N = 6... d = 0FFEF h
+    MOVWF   TMR1H
+    MOVLW   0FBh
+    MOVWF   TMR1L
+    BCF	    PIR1,   TMR1IF
+    
+    INCF    DIF_T
+    
+    MOVF    DIF_T,  W	    ; REVISAR SI DIF_T ES MAYOR O IGUAL QUE VALOR
+    SUBWF   VAL4,   W
+    BTFSS   STATUS, C	    ; Â¿DIF_T >= VAL1?
+    BCF	    PORTD,  RD3	    ; SÃ -> APAGA EL PIN
+    
+INT0:
+    BTFSS   INTCON, T0IF
+    GOTO    POP
+    MOVLW   .100		; N=252
+    MOVWF   TMR0
+    BCF	    INTCON, T0IF
+    
+;    MOVLW   .20
+;    MOVWF   TONMIN
     CLRF    DIF_T
 ;    BSF	    PORTD,  RD0
 ;    BSF	    PORTD,  RD1
 ;    BSF	    PORTD,  RD2
     BSF	    PORTD,  RD3
-    
-INT0:
-    BTFSS   INTCON, T0IF
-    GOTO    POP
-    MOVLW   .252		; N=252
-    MOVWF   TMR0
-    BCF	    INTCON, T0IF
-    
-    INCF    DIF_T
     
 POP:
     SWAPF   STATUS_TEMP, W
@@ -121,7 +133,7 @@ SETUP:
     BCF	    TRISD,  RD3	; PINS <0:3> PORTD AS PWM OUTPUTS
     CLRF    TRISE
     BSF	    TRISE,  RE0	; PINS <0:1> PORTE AS INPUTS
-    BSF	    TRISE,  RE1	; LECTURA DE VOLTAJES ANALÓGICOS
+    BSF	    TRISE,  RE1	; LECTURA DE VOLTAJES ANALÃ“GICOS
 
     BSF	    OSCCON, 6	; F_osc = 8 MHZ, INTERNAL OSCILATOR
     BSF	    OSCCON, 5
@@ -139,46 +151,57 @@ SETUP:
     CLRF    PORTD
     CLRF    PORTE
 ;    CLRF    VAL1
-    MOVLW   .125
-    MOVWF   VAL1
+;    MOVLW   .100
+;    MOVWF   VAL4
     CLRF    TONMIN
 ;*******************************************************************************
 LOOP:
-    PWM	    VAL1,   RD3
+;    PWM
+;    INCF    TONMIN, F
+;    DECFSZ  TONMIN, F
+;    GOTO    FIN
+    MOVLW   .92		    ;18-92
+    MOVWF   VAL4
     
+;    MOVF    DIF_T,  W	    ; REVISAR SI DIF_T ES MAYOR O IGUAL QUE VALOR
+;    SUBWF   VAL4,   W
+;    BTFSS   STATUS, C	    ; Â¿DIF_T >= VAL1?
+;    BCF	    PORTD,  RD3	    ; SÃ -> APAGA EL PIN
+
+;FIN:
     GOTO    LOOP
 ;*******************************************************************************
-; SUBRUTINA DE CONFIGURACIÓN TIMER0
+; SUBRUTINA DE CONFIGURACIÃ“N TIMER0
 ;*******************************************************************************
 CONFIG_TMR0
     BANKSEL TRISA
     BCF	    OPTION_REG, T0CS
-    BCF	    OPTION_REG, PSA	; Asignación de Prescaler al TMR0
+    BCF	    OPTION_REG, PSA	; AsignaciÃ³n de Prescaler al TMR0
     BSF	    OPTION_REG, PS2	; PRESCALER 1:256
     BSF	    OPTION_REG, PS1
     BSF	    OPTION_REG, PS0
     BANKSEL PORTA
-    MOVLW   .252		; N = 252
+    MOVLW   .100		; N = 252
     MOVWF   TMR0
     RETURN
 ;*******************************************************************************
-; SUBRUTINA DE CONFIGURACIÓN TIMER1
+; SUBRUTINA DE CONFIGURACIÃ“N TIMER1
 ;*******************************************************************************
 CONFIG_TMR1
     BANKSEL PORTA
     BCF	    T1CON,  TMR1GE	; COUNTING
-    BCF	    T1CON,  T1CKPS1	; PRESCALER 1:1
-    BCF	    T1CON,  T1CKPS0
+    BSF	    T1CON,  T1CKPS1	; PRESCALER 1:8
+    BSF	    T1CON,  T1CKPS0
     BCF	    T1CON,  TMR1CS	; INTERNAL CLOCK
     BSF	    T1CON,  TMR1ON	; ENABLE TIMER1
-    MOVLW   0ECh		; N =  d = 0EC78 h
+    MOVLW   0FFh		; N =  d = 0EC78 h
     MOVWF   TMR1H
-    MOVLW   078h
+    MOVLW   0FBh
     MOVWF   TMR1L
     BCF	    PIR1,   TMR1IF
     RETURN
 ;*******************************************************************************
-; SUBRUTINA DE CONFIGURACIÓN INTERRUPCIONES TMR1 Y 2
+; SUBRUTINA DE CONFIGURACIÃ“N INTERRUPCIONES TMR1 Y 2
 ;*******************************************************************************
 CONFIG_INTERRUPT
     BANKSEL TRISA
